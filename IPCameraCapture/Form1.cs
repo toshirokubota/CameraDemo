@@ -1,4 +1,4 @@
-﻿#define REMOTE_CAMERA
+﻿//#define REMOTE_CAMERA
 
 using System;
 using System.Collections.Generic;
@@ -12,6 +12,7 @@ using AForge.Video;
 using System.Runtime.InteropServices;
 using System.Drawing.Imaging;
 using AForge.Video.DirectShow;
+using AForge.Video;
 using System.Threading;
 
 
@@ -29,16 +30,12 @@ namespace IPCameraCapture
         VideoCaptureDevice localSource = null;
         bool bMotionDetectEnabled = false;
         bool bInversionEnabled = false;
-        Bitmap prev_bmp = null;
-        Bitmap prev_copy = null;
-        Bitmap curr_bmp = null;
-        Bitmap curr_copy = null;
-        Bitmap result_bmp = null;
+        Queue<Bitmap> inqueue = new Queue<Bitmap>();
+        Bitmap outImage = null;
+        Bitmap resultImage = null;
         int threshold = 50;
         long frameCount = 0;
-        BitmapData data = null;
-        BitmapData data2 = null;
-        int sleep_time = 500;
+        int sleep_time = 30;
 
         public Form1()
         {
@@ -57,51 +54,47 @@ namespace IPCameraCapture
 
         unsafe void ProcessImage()
         {
-            if (prev_copy != null)
+            Bitmap curr = null;
+            Bitmap res = null;
+            //lock (inqueue)
             {
-                byte* bptr = null;
-                byte* bptr2 = null;
-                if (bInversionEnabled || bMotionDetectEnabled)
+                if (inqueue.Count > 0)
+                {
+                    curr = inqueue.Dequeue();
+                }
+            }
+            if (curr != null)
+            {
+                res = (Bitmap)curr.Clone();
+                if (bInversionEnabled)
+                {
+                    byte* bptr = null;
+                    BitmapData data = null;
+                    if (res != null)
+                    {
+                        data = res.LockBits(new Rectangle(0, 0, res.Width, res.Height), ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb); //.Format32bppArgb); //.Format24bppRgb);
+                        bptr = (byte*)data.Scan0.ToPointer();
+                        _InvertImage(bptr, res.Width, res.Height);
+                        res.UnlockBits(data);
+                        Console.WriteLine("\tUnlocked res. {0}", inqueue.Count());
+                    }
+                }
+                //lock (inqueue)
                 {
                     try
                     {
-                        data = curr_copy.LockBits(new Rectangle(0, 0, curr_copy.Width, curr_copy.Height), ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb); //.Format32bppArgb); //.Format24bppRgb);
-                        bptr = (byte*)data.Scan0.ToPointer();
+                        resultImage = (Bitmap)res.Clone();
+                        outImage = (Bitmap)curr.Clone();
+                        Console.WriteLine("\tUpdated result and output: {0}, {1}", resultImage, outImage);
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show(ex.ToString(), "bm lock error");
+                        Console.WriteLine("\tException caught: {0}, {1}", resultImage, outImage);
                     }
-                    try
-                    {
-                        data2 = prev_copy.LockBits(new Rectangle(0, 0, prev_copy.Width, prev_copy.Height), ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb); //.Format32bppArgb); //.Format24bppRgb);
-                        bptr2 = (byte*)data2.Scan0.ToPointer();
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(ex.ToString(), "prev_bm lock error");
-                    }
-                    try
-                    {
-                        if (bInversionEnabled)
-                        {
-                            _InvertImage(bptr, curr_copy.Width, curr_copy.Height);
-                        }
-                        if (bMotionDetectEnabled)
-                        {
-                            _MotionImage(bptr, bptr2, prev_copy.Width, prev_copy.Height, threshold);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        MessageBox.Show(ex.ToString(), "native code error.");
-                    }
-                    curr_copy.UnlockBits(data);
-                    prev_copy.UnlockBits(data2);
-                    result_bmp = (Bitmap)curr_copy.Clone();
                 }
             }
         }
+
         unsafe void _InvertImage(byte* bptr, int width, int height)
         {
             InvertImage((char*)bptr, width * height * 3);
@@ -113,21 +106,14 @@ namespace IPCameraCapture
         }
         unsafe void video_NewFrame(object sender, NewFrameEventArgs e)
         {
-            lock (this)
+            lock (inqueue)
             {
                 frameCount++;
-                if (curr_bmp != null)
-                {
-                    prev_bmp = curr_bmp;
-                    prev_copy = curr_copy;
-                    //this.pictureBox2.Invalidate();
-                }
-                curr_bmp = (Bitmap)e.Frame.Clone();
-                curr_copy = (Bitmap)e.Frame.Clone();
+                inqueue.Enqueue(e.Frame);
+                Console.WriteLine("Frame: {0}, {1}", frameCount, inqueue.Count());
                 backgroundWorker1.RunWorkerAsync();
-                Console.WriteLine("Frame: {0}", frameCount);
-                Thread.Sleep(sleep_time);
             }
+            Thread.Sleep(sleep_time);
         }
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
@@ -155,19 +141,20 @@ namespace IPCameraCapture
 
         private void pictureBox1_Paint(object sender, PaintEventArgs e)
         {
-            if (curr_bmp != null)
+            lock (inqueue)
             {
-                this.pictureBox1.Image = (Image)curr_bmp;
+                if (outImage != null)
+                {
+                    this.pictureBox1.Image = (Image)outImage;
+                    this.pictureBox2.Image = (Image)outImage;
+                    Console.WriteLine("Updating outImage.{0},{1}", outImage.Width, outImage.Height);
+                }
+                if (resultImage != null)
+                {
+                    this.pictureBox3.Image = (Image)resultImage;
+                    Console.WriteLine("Updating resultImage.{0},{1}", resultImage.Width, resultImage.Height);
+                }
             }
-            if (prev_bmp != null)
-            {
-                this.pictureBox2.Image = (Image)prev_bmp;
-            }
-            if (result_bmp != null)
-            {
-                this.pictureBox3.Image = (Image)result_bmp;
-            }
-            Thread.Sleep(sleep_time);
         }
 
         private void pictureBox2_Paint(object sender, PaintEventArgs e)
@@ -181,6 +168,10 @@ namespace IPCameraCapture
         private void backgroundWorker1_DoWork(object sender, DoWorkEventArgs e)
         {
             ProcessImage();
+            /*lock(inqueue)
+            {
+                outImage = inqueue.Dequeue();
+            }*/
         }
 
         private void backgroundWorker1_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
