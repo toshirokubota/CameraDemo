@@ -1,4 +1,4 @@
-﻿//#define REMOTE_CAMERA
+﻿#define REMOTE_CAMERA
 
 using System;
 using System.Collections.Generic;
@@ -26,72 +26,100 @@ namespace IPCameraCapture
         [DllImport("myCPPLibrary.dll", ExactSpelling = false, CallingConvention = CallingConvention.Cdecl)]
         static extern unsafe int SubtractImage(char* buffer1, char* buffer2, int length, int thres);
 
-        MJPEGStream remoteSource = null;
-        VideoCaptureDevice localSource = null;
+        //MJPEGStream remoteSource = null;
+        IVideoSource videoSource = null;
+        //VideoCaptureDevice localSource = null;
+        //IVideoSource localSource = null;
+
         bool bMotionDetectEnabled = false;
         bool bInversionEnabled = false;
         Queue<Bitmap> inqueue = new Queue<Bitmap>();
-        Bitmap outImage = null;
+        Bitmap currentImage = null;
+        Bitmap prevImage = null;
         Bitmap resultImage = null;
-        int threshold = 50;
+        int threshold = 20;
         long frameCount = 0;
-        int sleep_time = 30;
+        int sleep_time = 250;
 
         public Form1()
         {
             InitializeComponent();
 #if REMOTE_CAMERA
-            remoteSource = new MJPEGStream("http://192.168.1.105:8099/videostream.cgi?user=admin&pwd=Foscam12chan");
-            remoteSource.NewFrame += new NewFrameEventHandler(video_NewFrame);
-            remoteSource.Start();
+            videoSource = new MJPEGStream("http://192.168.1.105:8099/videostream.cgi?user=admin&pwd=Foscam12chan");
+            videoSource.NewFrame += new NewFrameEventHandler(video_NewFrame);
+            videoSource.Start();
 #else
             FilterInfoCollection videoDevices = new FilterInfoCollection(FilterCategory.VideoInputDevice);
-            localSource = new VideoCaptureDevice(videoDevices[0].MonikerString);
-            localSource.NewFrame += new NewFrameEventHandler(video_NewFrame);
-            localSource.Start();
+            videoSource = new VideoCaptureDevice(videoDevices[0].MonikerString);
+            videoSource.NewFrame += new NewFrameEventHandler(video_NewFrame);
+            videoSource.Start();
 #endif
+            backgroundWorker1.RunWorkerAsync();
         }
 
         unsafe void ProcessImage()
         {
+            if (bInversionEnabled) return;
+
+            Bitmap prev = null;
             Bitmap curr = null;
             Bitmap res = null;
             //lock (inqueue)
+            try  
             {
-                if (inqueue.Count > 0)
+                Monitor.Enter(inqueue);
+                if (inqueue.Count >= 2) //need at least two for motion
                 {
-                    curr = inqueue.Dequeue();
+                    prev = (Bitmap)inqueue.Dequeue().Clone();
+                    curr = (Bitmap)inqueue.Peek().Clone();
                 }
             }
-            if (curr != null)
+            catch(Exception ex)
+            {
+                MessageBox.Show("1: " + ex.ToString());
+                Application.Exit();
+            }
+            finally
+            {
+                Monitor.Exit(inqueue);
+            }
+
+            if (curr != null && prev != null)
             {
                 res = (Bitmap)curr.Clone();
-                if (bInversionEnabled)
+                if (bInversionEnabled || bMotionDetectEnabled)
                 {
                     byte* bptr = null;
                     BitmapData data = null;
-                    if (res != null)
+                    byte* bptr2 = null;
+                    BitmapData data2 = null;
+                    //lock (inqueue)
                     {
                         data = res.LockBits(new Rectangle(0, 0, res.Width, res.Height), ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb); //.Format32bppArgb); //.Format24bppRgb);
                         bptr = (byte*)data.Scan0.ToPointer();
-                        _InvertImage(bptr, res.Width, res.Height);
+                        data2 = prev.LockBits(new Rectangle(0, 0, prev.Width, prev.Height), ImageLockMode.ReadWrite, PixelFormat.Format24bppRgb); //.Format32bppArgb); //.Format24bppRgb);
+                        bptr2 = (byte*)data2.Scan0.ToPointer();
+                        if (bInversionEnabled)
+                        {
+                            // _InvertImage(bptr, res.Width, res.Height);
+                            //Thread.Sleep(10);
+                        }
+                        if (bMotionDetectEnabled)
+                        {
+                            // _MotionImage(bptr, bptr2, res.Width, res.Height, threshold);
+                            //Thread.Sleep(10);
+                        }
                         res.UnlockBits(data);
-                        Console.WriteLine("\tUnlocked res. {0}", inqueue.Count());
+                        prev.UnlockBits(data2);
+                        //Console.WriteLine("\tUnlocked res. {0}", inqueue.Count());
                     }
+                     
+                    //Thread.Sleep(10);
                 }
-                //lock (inqueue)
-                {
-                    try
-                    {
-                        resultImage = (Bitmap)res.Clone();
-                        outImage = (Bitmap)curr.Clone();
-                        Console.WriteLine("\tUpdated result and output: {0}, {1}", resultImage, outImage);
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine("\tException caught: {0}, {1}", resultImage, outImage);
-                    }
-                }
+                resultImage = (Bitmap)res.Clone();
+                currentImage = (Bitmap)curr.Clone();
+                prevImage = (Bitmap)prev.Clone();
+                Console.WriteLine("\tUpdated result and output: {0}, {1}", resultImage, currentImage);
             }
         }
 
@@ -106,13 +134,29 @@ namespace IPCameraCapture
         }
         unsafe void video_NewFrame(object sender, NewFrameEventArgs e)
         {
-            lock (inqueue)
+            /*lock (inqueue)
             {
-                frameCount++;
-                inqueue.Enqueue(e.Frame);
-                Console.WriteLine("Frame: {0}, {1}", frameCount, inqueue.Count());
-                backgroundWorker1.RunWorkerAsync();
+                inqueue.Enqueue((Bitmap)e.Frame.Clone());
+            }*/
+            try
+            {
+                Monitor.Enter(inqueue);
+                if (inqueue.Count < 10)
+                {
+                    inqueue.Enqueue((Bitmap)e.Frame.Clone());
+                }
             }
+            catch (Exception ex)
+            {
+                MessageBox.Show("2: " + ex.ToString());
+                Application.Exit();
+            }
+            finally
+            {
+                Monitor.Exit(inqueue);
+            }
+            frameCount++;
+            Console.WriteLine("Frame: {0}, {1}", frameCount, inqueue.Count());
             Thread.Sleep(sleep_time);
         }
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
@@ -123,10 +167,11 @@ namespace IPCameraCapture
         private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
 #if REMOTE_CAMERA
-            remoteSource.Stop();
+            videoSource.Stop();
 #else
-            localSource.Stop();
+            videoSource.Stop();
 #endif
+            backgroundWorker1.CancelAsync();
         }
 
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
@@ -141,18 +186,21 @@ namespace IPCameraCapture
 
         private void pictureBox1_Paint(object sender, PaintEventArgs e)
         {
-            lock (inqueue)
+            //lock (inqueue)
             {
-                if (outImage != null)
+                if (currentImage != null)
                 {
-                    this.pictureBox1.Image = (Image)outImage;
-                    this.pictureBox2.Image = (Image)outImage;
-                    Console.WriteLine("Updating outImage.{0},{1}", outImage.Width, outImage.Height);
+                    this.pictureBox1.Image = (Image)currentImage;
+                    //Console.WriteLine("Updating outImage.{0},{1}", currentImage.Width, currentImage.Height);
+                }
+                if (prevImage != null)
+                {
+                    this.pictureBox2.Image = (Image)prevImage;
                 }
                 if (resultImage != null)
                 {
                     this.pictureBox3.Image = (Image)resultImage;
-                    Console.WriteLine("Updating resultImage.{0},{1}", resultImage.Width, resultImage.Height);
+                    //Console.WriteLine("Updating resultImage.{0},{1}", resultImage.Width, resultImage.Height);
                 }
             }
         }
@@ -167,14 +215,19 @@ namespace IPCameraCapture
 
         private void backgroundWorker1_DoWork(object sender, DoWorkEventArgs e)
         {
-            ProcessImage();
-            /*lock(inqueue)
+            while (true)
             {
-                outImage = inqueue.Dequeue();
-            }*/
+                ProcessImage();
+                backgroundWorker1.ReportProgress(0);
+                Thread.Sleep(sleep_time);
+            }
         }
 
         private void backgroundWorker1_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+        }
+
+        private void backgroundWorker1_ProgressChanged(object sender, ProgressChangedEventArgs e)
         {
             this.pictureBox1.Invalidate();
         }

@@ -1,6 +1,8 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual Studio 2010
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.21005.1
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebcamCapture", "WebcamCapture\WebcamCapture.csproj", "{B74E279F-4E6E-4373-BE82-FF90AFEE913E}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "myCPPLibrary", "myCPPLibrary\myCPPLibrary.vcxproj", "{74E5BC26-72A8-4C2A-AE81-C9037409BB6C}"
@@ -10,6 +12,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebCam_Capture", "Webcam_Capture_DLL\WebCam_Capture.csproj", "{782C366A-DD3B-4ED3-8A21-71A1F03947ED}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IPCameraCapture", "IPCameraCapture\IPCameraCapture.csproj", "{C037509E-67F5-43F8-8A93-13FA5A699C93}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "IPCameraCaptureOpenCV", "IPCameraCaptureOpenCV\IPCameraCaptureOpenCV.vcxproj", "{6CFDD40A-4358-4B71-8978-2905814BA94D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -95,6 +99,22 @@ Global
 		{C037509E-67F5-43F8-8A93-13FA5A699C93}.Release|x64.ActiveCfg = Release|x86
 		{C037509E-67F5-43F8-8A93-13FA5A699C93}.Release|x86.ActiveCfg = Release|x86
 		{C037509E-67F5-43F8-8A93-13FA5A699C93}.Release|x86.Build.0 = Release|x86
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Debug|Any CPU.ActiveCfg = Debug|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Debug|Mixed Platforms.ActiveCfg = Debug|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Debug|Mixed Platforms.Build.0 = Debug|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Debug|Win32.ActiveCfg = Debug|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Debug|Win32.Build.0 = Debug|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Debug|x64.ActiveCfg = Debug|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Debug|x86.ActiveCfg = Debug|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Debug|x86.Build.0 = Debug|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Release|Any CPU.ActiveCfg = Release|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Release|Mixed Platforms.ActiveCfg = Release|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Release|Mixed Platforms.Build.0 = Release|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Release|Win32.ActiveCfg = Release|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Release|Win32.Build.0 = Release|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Release|x64.ActiveCfg = Release|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Release|x86.ActiveCfg = Release|Win32
+		{6CFDD40A-4358-4B71-8978-2905814BA94D}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
